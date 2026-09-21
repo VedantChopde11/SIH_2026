@@ -1,0 +1,252 @@
+const express = require('express');
+const router = express.Router({ mergeParams: true });
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+const db = require('../db/connection');
+const { GoogleGenAI, Type, Schema } = require('@google/genai');
+
+// Initialize Gemini Client
+const ai = new GoogleGenAI({ apiKey: process.env.LLM_API_KEY });
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.post('/upload', upload.single('file'), async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  const { originalname, buffer, mimetype } = req.file;
+  // Use frontend provided name, fallback to Clerk user ID, or 'system'
+  const uploadedBy = req.body.uploaderName || req.auth.userId || 'system';
+
+  try {
+    let extractedText = '';
+
+    // 1. Parse File Content
+    if (mimetype === 'application/pdf') {
+      const data = await pdfParse(buffer);
+      extractedText = data.text;
+    } else if (
+      mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      originalname.endsWith('.docx')
+    ) {
+      const result = await mammoth.extractRawText({ buffer });
+      extractedText = result.value;
+    } else if (mimetype === 'text/plain' || mimetype === 'text/csv') {
+      extractedText = buffer.toString('utf8');
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Use PDF, DOCX, TXT, or CSV.' });
+    }
+
+    if (!extractedText.trim()) {
+      return res.status(400).json({ error: 'Could not extract any text from the file.' });
+    }
+
+    // 1.5 Idempotency Check
+    const existingReport = await db.query(
+      `SELECT id FROM reports WHERE project_id = $1 AND file_name = $2 AND status = 'Processed' LIMIT 1`,
+      [projectId, originalname]
+    );
+
+    if (existingReport.rows.length > 0) {
+      console.log(`[REPORT] id=${existingReport.rows[0].id} returning cached result for ${originalname}`);
+      const existingEvents = await db.query(`SELECT * FROM events WHERE report_id = $1`, [existingReport.rows[0].id]);
+      return res.json({ 
+        message: 'Report already processed (cached result)', 
+        extractedCount: existingEvents.rowCount, 
+        events: existingEvents.rows 
+      });
+    }
+
+    // 2. Start DB Transaction
+    const client = await db.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Insert into reports
+      const reportInsert = await client.query(
+        'INSERT INTO reports (project_id, uploaded_by, file_name, file_type, file_path, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+        [projectId, uploadedBy, originalname, mimetype, 'memory', 'Processed']
+      );
+      const reportId = reportInsert.rows[0].id;
+
+      // Insert into extracted_content (saving the raw text for audit)
+      await client.query(
+        'INSERT INTO extracted_content (report_id, original_text, extracted_text) VALUES ($1, $2, $3)',
+        [reportId, extractedText.substring(0, 1000), extractedText] // Limit original_text sample
+      );
+
+      // 3. Call Gemini API to extract events (Structured Output)
+      const prompt = `You are a construction project manager assistant. Extract all physical construction activities, events, and progress updates from the following field report.
+If you find a date, use YYYY-MM-DD format. If no date is found, use null.
+If you find quantities, extract the number and unit.
+Focus ONLY on physical construction events (e.g. pouring concrete, laying bricks, installing pipes).
+
+Report Text:
+${extractedText.substring(0, 10000)}
+`;
+
+      let response = null;
+      let retries = 3;
+      
+      console.log(`[GEMINI] report=${originalname} extraction request started`);
+      while (retries > 0) {
+        try {
+          response = await ai.models.generateContent({
+            model: 'gemini-3.6-flash',
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.ARRAY,
+                description: "A list of construction events extracted from the field report.",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    action: { type: Type.STRING, description: "The action being performed (e.g., 'Pouring', 'Installing')" },
+                    object: { type: Type.STRING, description: "The object of the action (e.g., 'Concrete Foundation', 'Piping')" },
+                    location: { type: Type.STRING, description: "The specific location mentioned (e.g., 'Level 1', 'Zone B')" },
+                    discipline: { type: Type.STRING, description: "The engineering discipline (e.g., 'Civil', 'Mechanical', 'Electrical')" },
+                    status: { type: Type.STRING, description: "Current status (e.g., 'In Progress', 'Completed')" },
+                    date: { type: Type.STRING, description: "The date of the event in YYYY-MM-DD format" },
+                    quantity: { type: Type.NUMBER, description: "The numerical quantity mentioned" },
+                    unit: { type: Type.STRING, description: "The unit of measurement (e.g., 'm3', 'sqm')" },
+                    source_text: { type: Type.STRING, description: "The exact short sentence or phrase from the report that proves this event" },
+                  },
+                  required: ["action", "object", "source_text"]
+                }
+              }
+            }
+          });
+          console.log(`[GEMINI] report=${originalname} extraction request completed`);
+          break; // Success!
+        } catch (genErr) {
+          if (genErr.status === 429) {
+            console.log(`[GEMINI] report=${originalname} quota exhausted on extraction`);
+            throw { isQuotaError: true, message: "AI processing is temporarily unavailable because the Gemini API quota has been reached. Your report has been saved and can be processed later." };
+          }
+          if (genErr.status === 503 && retries > 1) {
+            retries--;
+            console.log(`Gemini API 503 error, retrying in 2 seconds... (${retries} retries left)`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            throw genErr;
+          }
+        }
+      }
+
+      let events = [];
+      if (response.text) {
+        try {
+          events = JSON.parse(response.text);
+        } catch (e) {
+          console.error("Failed to parse Gemini output:", e);
+        }
+      }
+
+      // 4. Generate Embeddings (Batched) and Insert Events
+      let extractedCount = 0;
+      let batchedEmbeddings = [];
+      
+      if (events.length > 0) {
+        console.log(`[GEMINI] report=${originalname} batch embedding request started for ${events.length} events`);
+        try {
+          const contents = events.map(event => `${event.action || ''} ${event.object || ''} at ${event.location || ''} for ${event.discipline || ''}. Status: ${event.status || ''}.`);
+          const embedRes = await ai.models.embedContent({
+            model: 'gemini-embedding-2',
+            contents: contents,
+          });
+          batchedEmbeddings = embedRes.embeddings || [];
+          console.log(`[GEMINI] report=${originalname} batch embedding request completed`);
+        } catch (embedError) {
+          console.error("Batch embedding generation failed:", embedError);
+          if (embedError.status === 429) {
+            console.log(`[GEMINI] report=${originalname} quota exhausted on embeddings`);
+            throw { isQuotaError: true, message: "AI processing is temporarily unavailable because the Gemini API quota has been reached. Your report has been saved and can be processed later." };
+          }
+          // If it fails for another reason, we proceed without embeddings
+        }
+      }
+
+      for (let i = 0; i < events.length; i++) {
+        const event = events[i];
+        
+        let embeddingVector = null;
+        if (batchedEmbeddings[i] && batchedEmbeddings[i].values) {
+          const values = batchedEmbeddings[i].values.slice(0, 768);
+          embeddingVector = '[' + values.join(',') + ']';
+        }
+
+        let parsedDate = null;
+        if (event.date) {
+          const d = new Date(event.date);
+          if (!isNaN(d.getTime())) {
+            parsedDate = d.toISOString().split('T')[0];
+          }
+        }
+
+        await client.query(
+          `INSERT INTO events (report_id, project_id, action, object, location, discipline, status, actual_start, quantity, unit, source_text, embedding) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            reportId,
+            projectId,
+            event.action,
+            event.object,
+            event.location,
+            event.discipline,
+            event.status,
+            parsedDate,
+            event.quantity,
+            event.unit,
+            event.source_text,
+            embeddingVector
+          ]
+        );
+        extractedCount++;
+      }
+
+      await client.query('COMMIT');
+      console.log(`[REPORT] processing completed for ${originalname}. Total Gemini calls=2`);
+      res.json({ message: 'Report processed successfully', extractedCount, events });
+
+    } catch (dbError) {
+      await client.query('ROLLBACK');
+      throw dbError;
+    } finally {
+      client.release();
+    }
+
+  } catch (err) {
+    console.error('Report Processing Error:', err);
+    if (err.isQuotaError) {
+      return res.status(429).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Error processing report' });
+  }
+});
+
+// Get all reports for a project
+router.get('/', async (req, res) => {
+  const { projectId } = req.params;
+  try {
+    const result = await db.query(
+      `SELECT 
+         id, project_id, uploaded_by, file_name, file_type, file_path, status, 
+         created_at AT TIME ZONE 'UTC' as created_at 
+       FROM reports 
+       WHERE project_id = $1 
+       ORDER BY created_at DESC`, 
+       [projectId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

@@ -1,0 +1,7 @@
+Activity ID,Activity Name,WBS Code,WBS Name,Planned Start,Planned Finish,Duration
+A1000,Mobilization,PROJ.1,Site Setup,2026-10-01,2026-10-15,15
+A1010,Site Clearing,PROJ.1,Site Setup,2026-10-16,2026-10-31,16
+A1020,Excavation,PROJ.2.1,Earthworks,2026-11-01,2026-11-20,20
+A1030,Foundation Pour,PROJ.2.2,Concrete,2026-11-21,2026-11-25,5
+A1040,Curing,PROJ.2.2,Concrete,2026-11-26,2026-12-05,10
+A1050,Steel Erection,PROJ.3,Superstructure,2026-12-06,2027-01-15,41

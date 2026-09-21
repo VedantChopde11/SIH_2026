@@ -1,0 +1,6 @@
+WBS Code,WBS Name,Activity ID,Activity Name,Planned Start,Planned Finish,Duration,Location,Discipline
+C.1,Foundation Works,C-1001,Pour Concrete Footings,2026-09-01,2026-09-05,5,Zone A,Civil
+C.1,Foundation Works,C-1002,Install Rebar for Foundation,2026-09-06,2026-09-10,5,Zone A,Civil
+S.1,Structural Works,S-2001,Erect Steel Columns,2026-09-11,2026-09-20,10,Zone A,Structural
+E.1,Electrical Works,E-3001,Install Main Conduits,2026-09-21,2026-09-25,5,Zone A,Electrical
+P.1,Plumbing Works,P-4001,Lay Underground Pipes,2026-09-21,2026-09-25,5,Zone A,Plumbing
