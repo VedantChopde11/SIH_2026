@@ -7,14 +7,14 @@ let pipeline = null;
 
 async function getTransformersPipeline() {
   if (!pipeline) {
-    console.log("Loading BGE-M3 model via @xenova/transformers...");
+    console.log("Loading BGE-Small model via @xenova/transformers...");
     // Dynamic import because @xenova/transformers is CommonJS/ESM
     const transformers = await import('@xenova/transformers');
-    // Using BGE-M3 (or a fallback like bge-small-en-v1.5 if M3 is too large for the environment)
-    pipeline = await transformers.pipeline('feature-extraction', 'Xenova/bge-m3', {
+    // Using BGE-Small to fit within 512MB RAM constraints
+    pipeline = await transformers.pipeline('feature-extraction', 'Xenova/bge-small-en-v1.5', {
       quantized: true, // Use quantized model to save memory
     });
-    console.log("BGE-M3 model loaded successfully.");
+    console.log("BGE-Small model loaded successfully.");
   }
   return pipeline;
 }
@@ -42,9 +42,9 @@ async function generateEmbeddings(texts) {
 
     return {
       vectors,
-      modelName: 'BAAI/bge-m3',
+      modelName: 'BAAI/bge-small-en-v1.5',
       modelVersion: '1',
-      vectorColumn: 'embedding_bge'
+      vectorColumn: 'embedding_bge_small'
     };
   } else {
     // Default to Gemini

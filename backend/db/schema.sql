@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS activities (
   embedding_source_hash VARCHAR(64),
   embedded_at TIMESTAMP,
   embedding_bge vector(1024),
+  embedding_bge_small vector(384),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(project_id, activity_id_original)
@@ -130,6 +131,7 @@ CREATE TABLE IF NOT EXISTS events (
   embedding_source_hash VARCHAR(64),
   embedded_at TIMESTAMP,
   embedding_bge vector(1024),
+  embedding_bge_small vector(384),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
