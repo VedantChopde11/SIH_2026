@@ -50,7 +50,7 @@ router.post('/match-all', async (req, res) => {
     await client.query('BEGIN');
     
     const provider = (process.env.EMBEDDING_PROVIDER || 'gemini').toLowerCase();
-    const vectorCol = provider === 'bge-m3' ? 'embedding_bge' : 'embedding';
+    const vectorCol = provider === 'bge-m3' ? 'embedding_bge_small' : 'embedding';
 
     // 1. Fetch events that haven't been matched yet
     const eventsQuery = await client.query(
