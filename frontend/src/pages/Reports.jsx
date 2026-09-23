@@ -56,6 +56,32 @@ const Reports = () => {
     }
   };
 
+  const handleDownload = async (e, report) => {
+    e.preventDefault();
+    try {
+      const token = await getToken();
+      const response = await fetch(`${API_URL}/projects/${activeProject.id}/reports/${report.id}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) throw new Error("Download failed");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = report.file_name;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to download report");
+    }
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
       case "Processed":
@@ -214,9 +240,8 @@ const Reports = () => {
                             <FileText className="w-5 h-5" />
                           </div>
                           <a
-                            href={`${API_URL}/projects/${activeProject.id}/reports/${report.id}/download`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href="#"
+                            onClick={(e) => handleDownload(e, report)}
                             className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors hover:underline"
                           >
                             {report.file_name}
