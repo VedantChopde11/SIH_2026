@@ -174,7 +174,7 @@ export default function WBS() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-14rem)]">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             
             {/* Toolbar */}
             <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -206,7 +206,7 @@ export default function WBS() {
             </div>
             
             {/* Tree View */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+            <div className="flex-1 overflow-x-auto p-6 bg-slate-50/30">
               {filteredActivities.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">

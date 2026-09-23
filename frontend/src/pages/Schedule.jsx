@@ -206,7 +206,7 @@ export default function Schedule() {
             )}
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-14rem)]">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <h3 className="font-bold text-slate-900 flex items-center text-lg">
                 <CheckCircle2 className="w-6 h-6 text-emerald-500 mr-2.5" />
@@ -225,7 +225,7 @@ export default function Schedule() {
                 </div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-x-auto p-6">
                <div className="flex text-xs font-bold text-slate-400 uppercase tracking-wider border-b-2 border-slate-100 pb-3 mb-4 pr-4 sticky top-0 bg-white z-10">
                  <div className="flex-1">Hierarchy / Activity</div>
                  <div className="w-48 flex justify-end gap-4">

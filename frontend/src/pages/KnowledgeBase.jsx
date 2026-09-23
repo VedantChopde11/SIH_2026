@@ -101,7 +101,7 @@ export default function KnowledgeBase() {
             </div>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-13rem)]">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="relative w-full sm:w-96">
@@ -125,7 +125,7 @@ export default function KnowledgeBase() {
               </button>
             </div>
   
-            <div className="flex-1 overflow-auto p-6 bg-slate-50/30">
+            <div className="flex-1 overflow-x-auto p-6 bg-slate-50/30">
               {filteredDocs.length === 0 ? (
                 <div className="text-center py-16 flex flex-col items-center justify-center">
                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
