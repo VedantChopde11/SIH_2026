@@ -75,7 +75,7 @@ export default function Audit() {
             </div>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-13rem)]">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             
             <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="relative w-full sm:w-96">
@@ -96,7 +96,7 @@ export default function Audit() {
               </div>
             </div>
   
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-x-auto">
               {filteredLogs.length === 0 ? (
                 <div className="p-16 text-center flex flex-col items-center justify-center">
                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
